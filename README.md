@@ -67,4 +67,16 @@ python run_full.py --mode train
 ## Citation
 
 If you use this code for your research, please cite our paper.
-The BibTeX entry will be posted after paper becomes available on the ACM website.
+
+```bibtex
+@inproceedings{brachiation2022,
+  author = {Reda, Daniele and Ling, Hung Yu and van de Panne, Michiel},
+  title = {Learning to Brachiate via Simplified Model Imitation},
+  year = {2022},
+  publisher = {Association for Computing Machinery},
+  booktitle = {ACM SIGGRAPH 2022 Conference Proceedings},
+  articleno = {24},
+  numpages = {9},
+  series = {SIGGRAPH '22}
+}
+```
