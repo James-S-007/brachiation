@@ -246,7 +246,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.prev_grab_cids = self.grab_constraint_ids.copy()
 
         state = np.concatenate(self.get_observation_components())
-        return state
+        return state.astype('float32')  # TODO(js): make float32 from beginning
 
     def step(self, action):
         self.timestep += 1
@@ -339,7 +339,7 @@ class Gibbon2DCustomEnv(EnvBase):
             info["curriculum_metric"] = self.next_step_index
 
         state = np.concatenate(self.get_observation_components())
-        return state, reward, done, info
+        return state.astype('float32'), reward, done, info  # TODO(js): make float32 from be
 
     def apply_grab_action(self, grab_action):
 
@@ -487,7 +487,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.action_space = gym.spaces.Box(-high, high, dtype="f4")
 
         # body_vel + grab_status + handhold positions (x3)
-        high = np.inf * np.ones(3 + (L + 1) * 2, dtype="f4")
+        high = np.inf * np.ones(3 + (L + 1) * 2, dtype="f4")  # TODO(js): adjust lookahead length
         self.observation_space = gym.spaces.Box(-high, high, dtype="f4")
 
         self._dr = torch.zeros((P, N + L), device=D)
@@ -601,7 +601,7 @@ class Gibbon2DPointMassEnv(gym.Env):
                 h.set_position((x, 0, z))
 
         states = torch.cat(self.get_observation_components(), dim=-1)
-        return states
+        return states.float()
 
     def step(self, actions):
         actions.clamp_(-1, 1)
@@ -753,4 +753,4 @@ class Gibbon2DPointMassEnv(gym.Env):
             rewards = rewards[0]
             dones = dones[0]
 
-        return states, rewards, dones, info
+        return states.float(), rewards, dones, info
