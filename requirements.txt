@@ -2,7 +2,8 @@ scipy
 numpy
 matplotlib
 cloudpickle
-gym==0.20.0
+gym==0.20.0; sys_platform != 'darwin' or platform_machine != 'arm64'
+gym; sys_platform == 'darwin' and platform_machine == 'arm64'
 pybullet
 torch
 bottleneck
