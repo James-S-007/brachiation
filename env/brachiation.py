@@ -601,7 +601,7 @@ class Gibbon2DPointMassEnv(gym.Env):
                 h.set_position((x, 0, z))
 
         states = torch.cat(self.get_observation_components(), dim=-1)
-        return states.float()
+        return states
 
     def step(self, actions):
         actions.clamp_(-1, 1)
@@ -753,4 +753,4 @@ class Gibbon2DPointMassEnv(gym.Env):
             rewards = rewards[0]
             dones = dones[0]
 
-        return states.float(), rewards, dones, info
+        return states, rewards, dones, info
