@@ -37,6 +37,9 @@ register(
 register(
     id="Gibbon2DPointMassEnv-v0",
     entry_point="env.brachiation:Gibbon2DPointMassEnv",
+    kwargs={
+        'num_parallel': 1
+    }
 )
 
 register(
