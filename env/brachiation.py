@@ -601,16 +601,20 @@ class Gibbon2DPointMassEnv(gym.Env):
                 h.set_position((x, 0, z))
 
         states = torch.cat(self.get_observation_components(), dim=-1)
-        return states
+        return states[0].numpy()
 
     def step(self, actions):
+        if isinstance(actions, np.ndarray):
+            actions = torch.from_numpy(actions)
         actions.clamp_(-1, 1)
 
         ratio = self.curriculum / self.max_curriculum
 
         # grab + target length
-        grab_actions = actions[:, [0]]
-        target_length_offsets = actions[:, [1]] * self.max_arm_length
+        # grab_actions = actions[:, [0]]
+        # target_length_offsets = actions[:, [1]] * self.max_arm_length
+        grab_actions = actions[0]
+        target_length_offsets = actions[1] * self.max_arm_length
 
         targets = self.handholds[self._all, self.next_step_indices.squeeze(-1)]
         vec_to_targets = self.body_positions - targets
@@ -707,14 +711,14 @@ class Gibbon2DPointMassEnv(gym.Env):
             "bad_mask": (~max_step_reached).float(),
             "just_grabbed": set_grab,
         }
-        if dones.any():
-            average_completed = self.next_step_indices[dones].float().mean()
-            info["curriculum_metric"] = float(average_completed) - 1
-            info["episode_rewards"] = self.episode_rewards[dones]
+        # if dones.any():
+        #     average_completed = self.next_step_indices[dones].float().mean()
+        #     info["curriculum_metric"] = float(average_completed) - 1
+        #     info["episode_rewards"] = self.episode_rewards[dones]
 
-            # Reset terminated agents
-            reset_indices = self._all[dones.squeeze(-1)]
-            states = self.reset(indices=reset_indices)
+        #     # Reset terminated agents
+        #     reset_indices = self._all[dones.squeeze(-1)]
+        #     states = self.reset(indices=reset_indices)
 
         if self.is_rendered:
             x0, z0 = self.body_positions[0]
@@ -749,8 +753,10 @@ class Gibbon2DPointMassEnv(gym.Env):
             )
             self._last_body_position = cur_body_xyz
 
-            states = states[[0]]
-            rewards = rewards[0]
-            dones = dones[0]
+            # rewards = rewards[0]
+            # dones = dones[0]
 
+        states = states[0].numpy()
+        rewards = rewards.item()
+        dones = dones.item()
         return states, rewards, dones, info
