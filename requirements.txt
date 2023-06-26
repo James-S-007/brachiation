@@ -4,5 +4,6 @@ matplotlib
 cloudpickle
 gym
 pybullet
-torch --extra-index-url https://download.pytorch.org/whl/cu118
 bottleneck
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch
