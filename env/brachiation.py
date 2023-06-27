@@ -44,9 +44,10 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 2
 
-    def __init__(self, **kwargs):
+    def __init__(self, ref_traj=False, **kwargs):
         super().__init__(self.robot_class, remove_ground=True, **kwargs)
         self.robot.set_base_pose(pose="hanging")
+        self.ref_traj = ref_traj
 
         basepath = os.path.join(parent_dir, "data", "objects", "misc")
         filename = os.path.join(basepath, "plane_stadium.sdf")
@@ -125,6 +126,9 @@ class Gibbon2DCustomEnv(EnvBase):
         target_delta[:, 0] = target_delta[:, 0] * cos_ - target_delta[:, 2] * sin_
         target_delta[:, 2] = target_delta[:, 0] * sin_ + target_delta[:, 2] * cos_
 
+        if not self.ref_traj:
+            return self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())  # TODO(js): Do we want raw target data or this target_delta?
+            # TODO(js): remove ref_delta all and all associated calculations all together
         ref_delta[:, 0] = ref_delta[:, 0] * cos_ - ref_delta[:, 2] * sin_
         ref_delta[:, 2] = ref_delta[:, 0] * sin_ + ref_delta[:, 2] * cos_
 
@@ -203,7 +207,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.handholds[:, 2] += z0
 
         # Uncomment if not using reference trajectory
-        # self.handholds = self.generate_handholds()
+        self.handholds = self.generate_handholds()
 
         if self.is_rendered:
             for h, pos in zip(self.handhold_markers, self.handholds):
@@ -339,7 +343,7 @@ class Gibbon2DCustomEnv(EnvBase):
             info["curriculum_metric"] = self.next_step_index
 
         state = np.concatenate(self.get_observation_components())
-        return state.astype('float32'), reward, done, info  # TODO(js): make float32 from be
+        return state.astype('float32'), reward, done, info
 
     def apply_grab_action(self, grab_action):
 

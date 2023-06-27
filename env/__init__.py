@@ -32,6 +32,9 @@ register(
     id="Gibbon2DCustomEnv-v0",
     entry_point="env.brachiation:Gibbon2DCustomEnv",
     max_episode_steps=1000,
+    kwargs={
+        'ref_traj': False
+    }
 )
 
 register(
