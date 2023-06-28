@@ -32,6 +32,7 @@ def arg_parser():
     parser.add_argument("--use_curriculum", type=int, default=1)
     parser.add_argument("--tag", type=str, default=None)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--ref_traj", type=int, default=1)
     return parser
 
 
@@ -241,7 +242,7 @@ def play(args):
     controller = policy.actor
 
     render = args.render == 1
-    env = make_env(args.env, render=render)
+    env = make_env(args.env, ref_traj=args.ref_traj, render=render)
     env.unwrapped.curriculum = args.use_curriculum
 
     obs = env.reset()

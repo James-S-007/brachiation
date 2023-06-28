@@ -268,8 +268,10 @@ def play(args):
     obs = env.reset()
     while True:
         if not render or not env.camera.env_should_wait:
+            obs = torch.from_numpy(obs)  # make compatible w/ prev env structure
             action = controller(obs)
             obs, rew, done, info = env.step(action)
+            done = [done]  # make compatible w/ prev env structure
             avg_speed.append(env.body_velocities.norm(dim=-1))
 
             if (key := "curriculum_metric") in info:
