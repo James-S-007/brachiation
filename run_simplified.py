@@ -19,7 +19,7 @@ def arg_parser():
     parser.add_argument(
         "--mode", required=True, choices=["train", "play", "test", "dump"]
     )
-    parser.add_argument("--env", type=str, default="env:Gibbon2DPointMassEnv-v0")
+    parser.add_argument("--env", type=str, default="env:FOGibbon2DPointMassEnv-v0")
     parser.add_argument("--dir", type=str, default=os.path.join("exp_s", now_str))
     parser.add_argument("--tag", type=str, default=None)
     parser.add_argument("--net", type=str, default=None)

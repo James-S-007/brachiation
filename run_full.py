@@ -23,7 +23,7 @@ def arg_parser():
     parser.add_argument(
         "--mode", required=True, choices=["train", "play", "test", "plan"]
     )
-    parser.add_argument("--env", type=str, default="env:Gibbon2DCustomEnv-v0")
+    parser.add_argument("--env", type=str, default="env:FOGibbon2DCustomEnv-v0")
     parser.add_argument("--dir", type=str, default=os.path.join("exp_f", now_str))
     parser.add_argument("--net", type=str, default=None)
     parser.add_argument("--frames", type=int, default=2.5e7)
@@ -65,7 +65,7 @@ def train(args):
     }
 
     final_lr = 3e-5
-    envs = make_vec_envs(args.env, args.seed, num_processes)
+    envs = make_vec_envs(args.env, args.seed, num_processes, ref_traj=args.ref_traj, render=args.render)
 
     obs_dim = envs.observation_space.shape[0]
     action_dim = envs.action_space.shape[0]
