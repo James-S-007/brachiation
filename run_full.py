@@ -33,6 +33,7 @@ def arg_parser():
     parser.add_argument("--tag", type=str, default=None)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--ref_traj", type=int, default=1)
+    parser.add_argument("--num_parallel", type=int, default=125)
     return parser
 
 
@@ -41,7 +42,7 @@ def train(args):
 
     num_frames = args.frames
     episode_steps = 40000
-    num_processes = 125 if os.name != "nt" else torch.multiprocessing.cpu_count()
+    num_processes = args.num_parallel if os.name != "nt" else torch.multiprocessing.cpu_count()
     num_steps = episode_steps // num_processes
     mini_batch_size = 2000
     num_mini_batch = episode_steps // mini_batch_size

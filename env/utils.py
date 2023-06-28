@@ -31,7 +31,7 @@ def make_env(env_id, **kwargs):
 
 
 def make_vec_envs(env_id, seed, num_processes, **kwargs):
-    assert num_processes > 1
+    assert num_processes >= 1
 
     env_fns = [make_env_fns(env_id, seed, i, **kwargs) for i in range(num_processes)]
 

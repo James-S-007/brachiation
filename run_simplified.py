@@ -30,7 +30,8 @@ def arg_parser():
     parser.add_argument("--max_grab_duration", type=int, default=240)
     parser.add_argument("--early_termination", type=int, default=1)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--lookahead", type=int, default=2)
+    parser.add_argument("--lookahead", type=int, default=1)
+    parser.add_argument("--num_parallel", type=int, default=8000)
     return parser
 
 
@@ -44,7 +45,7 @@ def train(args):
 
     num_frames = args.frames
     episode_steps = 80_000
-    num_processes = 8_000 if os.name != "nt" else torch.multiprocessing.cpu_count()
+    num_processes = args.num_parallel if os.name != "nt" else torch.multiprocessing.cpu_count()
 
     if args.tag is not None:
         args.dir = f"{args.dir}_{args.tag}"

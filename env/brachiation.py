@@ -42,7 +42,7 @@ class Gibbon2DCustomEnv(EnvBase):
     min_grab_duration = 15
     max_grab_duration = 240
 
-    lookahead = 2
+    lookahead = 1
 
     def __init__(self, ref_traj=False, **kwargs):
         super().__init__(self.robot_class, remove_ground=True, **kwargs)
@@ -461,7 +461,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.is_rendered = kwargs.get("render", False)
         self.num_parallel = kwargs.get("num_parallel", 4)
 
-        self.lookahead = kwargs.get("lookahead", 2)
+        self.lookahead = kwargs.get("lookahead", 1)
         self.min_grab_duration = kwargs.get("min_grab_duration", 15)
         self.max_grab_duration = kwargs.get("max_grab_duration", 240)
 
