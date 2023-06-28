@@ -207,7 +207,8 @@ class Gibbon2DCustomEnv(EnvBase):
         self.handholds[:, 2] += z0
 
         # Uncomment if not using reference trajectory
-        self.handholds = self.generate_handholds()
+        if not self.ref_traj:
+            self.handholds = self.generate_handholds()
 
         if self.is_rendered:
             for h, pos in zip(self.handhold_markers, self.handholds):
