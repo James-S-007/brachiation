@@ -22,33 +22,26 @@ parent_dir = os.path.dirname(current_dir)
 os.sys.path.append(parent_dir)
 
 
-register(
-    id="Gibbon2DSwingUpEnv-v0",
-    entry_point="env.brachiation:Gibbon2DSwingUpEnv",
-    max_episode_steps=1000,
-)
+for observation_mode in ["FO", "PO"]:
+    register(
+        id=f"{observation_mode}Gibbon2DCustomEnv-v0",
+        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        max_episode_steps=1000,
+        kwargs={
+            'ref_traj': False,
+            'noise_stdev': 0.0 if observation_mode == "FO" else 0.01
+        }
+    )
 
-register(
-    id="Gibbon2DCustomEnv-v0",
-    entry_point="env.brachiation:Gibbon2DCustomEnv",
-    max_episode_steps=1000,
-    kwargs={
-        'ref_traj': False
-    }
-)
-
-register(
-    id="Gibbon2DPointMassEnv-v0",
-    entry_point="env.brachiation:Gibbon2DPointMassEnv",
-    kwargs={
-        'num_parallel': 1
-    }
-)
-
-register(
-    id="Gibbon2DPointMassEnv-v1",
-    entry_point="env.brachiation:Gibbon2DPointMassPerStepEnv",
-)
+for observation_mode in ["FO", "PO"]:
+    register(
+        id=f"{observation_mode}Gibbon2DPointMassEnv-v0",
+        entry_point="env.brachiation:Gibbon2DPointMassEnv",
+        kwargs={
+            'num_parallel': 1,
+            'noise_stdev': 0.0 if observation_mode == "FO" else 0.01
+        }
+    )
 
 
 class EnvBase(gym.Env):

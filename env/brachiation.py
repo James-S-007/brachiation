@@ -44,10 +44,11 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 1
 
-    def __init__(self, ref_traj=False, **kwargs):
+    def __init__(self, ref_traj=False, noise_stdev=0.0, **kwargs):
         super().__init__(self.robot_class, remove_ground=True, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
+        self.noise_stdev = noise_stdev
 
         basepath = os.path.join(parent_dir, "data", "objects", "misc")
         filename = os.path.join(basepath, "plane_stadium.sdf")
@@ -113,7 +114,8 @@ class Gibbon2DCustomEnv(EnvBase):
     def get_observation_components(self):
         k = self.next_step_index
         targets = self.handholds[k - 1 : k + self.lookahead]
-        target_delta = targets - self.robot.body_xyz
+        noise = np.random.normal(0.0, self.noise_stdev, targets.shape)
+        target_delta = (targets + noise) - self.robot.body_xyz
 
         window = slice(self.ref_timestep + 1, self.ref_timestep + 30, 5)
         ref_delta = self.ref_xyz[window] - self.robot.body_xyz
@@ -456,7 +458,7 @@ class Gibbon2DPointMassEnv(gym.Env):
 
     num_steps = 30
 
-    def __init__(self, **kwargs):
+    def __init__(self, noise_stdev=0.0, **kwargs):
         self.device = kwargs.get("device", "cpu")
         self.is_rendered = kwargs.get("render", False)
         self.num_parallel = kwargs.get("num_parallel", 4)
@@ -469,11 +471,13 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.max_curriculum = 1
         self.curriculum = kwargs.get("curriculum", self.max_curriculum)
         self.advance_threshold = 15
+        self.noise_stdev = noise_stdev
 
         print(f"{self.lookahead=}")
         print(f"{self.curriculum=}")
         print(f"{self.min_grab_duration=}")
         print(f"{self.max_grab_duration=}")
+        print(f"{self.noise_stdev=}")
 
         P = self.num_parallel
         N = self.num_steps
@@ -565,7 +569,8 @@ class Gibbon2DPointMassEnv(gym.Env):
         target_indices = indices.repeat(self.lookahead + 1, 1) + self._offsets
 
         next_handholds = self.handholds[self._all, target_indices].transpose(0, 1)
-        deltas = next_handholds - self.body_positions[:, None]
+        noise = torch.from_numpy(np.random.normal(0.0, self.noise_stdev, next_handholds.shape))
+        deltas = (next_handholds + noise) - self.body_positions[:, None]
 
         normalized_durations = self.grab_durations / self.max_grab_duration
         return (
