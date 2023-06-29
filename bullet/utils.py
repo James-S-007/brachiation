@@ -211,3 +211,43 @@ class Camera:
         if self._target_period < time_spent:
             self._last_frame_time = time.perf_counter()
             self.env_should_wait = False
+
+
+class OffscreenCamera(Camera):  # for rendering scene w/o GUI
+    def __init__(self, bc, fps=60, dist=2.5, yaw=0, pitch=0, use_egl=False, width=480, height=480):
+        super().__init__(bc, fps=fps, dist=dist, yaw=yaw, pitch=pitch, use_egl=use_egl)
+        self.width = width
+        self.height = height
+
+    def lookat(self, pos):
+        self._cam_target = pos  # can't use debugCameraVisualizer w/o GUI (I think)
+
+    def track(self, pos, smooth_coef=None):
+        self.lookat(pos)
+
+    def dump_rgb_array(self):
+        view_matrix = self._p.computeViewMatrixFromYawPitchRoll(
+            cameraTargetPosition=self._cam_target,
+            distance=self._cam_dist,
+            yaw=self._cam_yaw,
+            pitch=self._cam_pitch,
+            roll=0,
+            upAxisIndex=2,
+        )
+
+        projection_matrix = self._p.computeProjectionMatrixFOV(
+            fov=60,
+            aspect=self.width / self.height,
+            nearVal=0.1,
+            farVal=100.0,
+        )
+
+        _, _, rgb_pixels, _, _ = self._p.getCameraImage(
+            width=self.width,
+            height=self.height,
+            viewMatrix=view_matrix,
+            projectionMatrix=projection_matrix,
+            renderer=self._p.ER_TINY_RENDERER,
+        )
+
+        return rgb_pixels[:,:,0:3]  # remove alpha axis (RGBA)

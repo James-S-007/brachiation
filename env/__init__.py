@@ -6,7 +6,7 @@ import gym.utils.seeding
 import numpy as np
 import pybullet
 
-from bullet.utils import BulletClient, Camera, StadiumScene
+from bullet.utils import BulletClient, Camera, OffscreenCamera, StadiumScene
 
 
 def register(id, **kvargs):
@@ -28,8 +28,8 @@ for observation_mode in ["FO", "PO"]:
         entry_point="env.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
-            'ref_traj': False,
-            'noise_stdev': 0.0 if observation_mode == "FO" else 0.01
+            'ref_traj': True,
+            'noise_stdev': 0.0 if observation_mode == "FO" else 0.01,
         }
     )
 
@@ -52,6 +52,7 @@ class EnvBase(gym.Env):
         remove_ground=False,
         use_egl=False,
         use_ffmpeg=False,
+        img_obs=True
     ):
         self.robot_class = robot_class
 
@@ -59,6 +60,7 @@ class EnvBase(gym.Env):
         self.remove_ground = remove_ground
         self.use_egl = use_egl
         self.use_ffmpeg = use_ffmpeg
+        self.img_obs = img_obs
 
         self.scene = None
         self.physics_client_id = -1
@@ -80,11 +82,11 @@ class EnvBase(gym.Env):
 
         self.owns_physics_client = True
 
-        bc_mode = pybullet.GUI if self.is_rendered else pybullet.DIRECT
+        bc_mode = pybullet.GUI if self.is_rendered and not self.img_obs else pybullet.DIRECT
         render_fps = 1 / self.control_step
         self._p = BulletClient(bc_mode, use_ffmpeg=self.use_ffmpeg, fps=render_fps)
 
-        if self.is_rendered or self.use_egl:
+        if self.is_rendered or self.use_egl or self.img_obs:
             if hasattr(self, "create_target"):
                 self.create_target()
 
@@ -127,10 +129,10 @@ class EnvBase(gym.Env):
         if hasattr(self, "create_terrain"):
             self.create_terrain()
 
-        if self.is_rendered or self.use_egl:
+        if (self.is_rendered or self.use_egl) and not self.img_obs:
             self.camera = Camera(self._p, render_fps, use_egl=self.use_egl)
-
-        pc.configureDebugVisualizer(pc.COV_ENABLE_RENDERING, int(self.is_rendered))
+        elif self.img_obs:
+            self.camera = OffscreenCamera(self._p, render_fps, use_egl=self.use_egl)
 
         # self.state_id = self._p.saveState()
 

@@ -63,7 +63,11 @@ class Gibbon2DCustomEnv(EnvBase):
         RO = self.robot.observation_space.shape[0]
         K = (self.lookahead + 1) * 3 + 6 * 3
         high = np.inf * np.ones(RO + K, dtype=np.float32)
-        self.observation_space = gym.spaces.Box(-high, high, dtype=np.float32)
+        obs_space = {}
+        obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
+        if self.img_obs:
+            obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+        self.observation_space = gym.spaces.Dict(obs_space)
 
         RA = self.robot.action_space.shape[0]
         # Two more action variables for grab
@@ -80,7 +84,7 @@ class Gibbon2DCustomEnv(EnvBase):
         # Shoulder joints are not limited, so hardcode a kp
         self._a[[-6, -3]] = np.pi / 2
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             self.target_marker = VSphere(self._p, 0.05, rgba=(0, 0, 1, 1))
             self.free_hand_marker = VSphere(self._p, 0.05, rgba=(0, 0, 1, 1))
             self.grab_hand_marker = VSphere(self._p, 0.06, rgba=(0, 1, 0, 1))
@@ -128,13 +132,26 @@ class Gibbon2DCustomEnv(EnvBase):
         target_delta[:, 0] = target_delta[:, 0] * cos_ - target_delta[:, 2] * sin_
         target_delta[:, 2] = target_delta[:, 0] * sin_ + target_delta[:, 2] * cos_
 
-        if not self.ref_traj:
-            return self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())  # TODO(js): Do we want raw target data or this target_delta?
-            # TODO(js): remove ref_delta all and all associated calculations all together
         ref_delta[:, 0] = ref_delta[:, 0] * cos_ - ref_delta[:, 2] * sin_
         ref_delta[:, 2] = ref_delta[:, 0] * sin_ + ref_delta[:, 2] * cos_
 
-        return self.robot_state, target_delta.flatten(), ref_delta.flatten()
+        obs = {}
+        if self.ref_traj:
+            obs['state'] = self.robot_state, target_delta.flatten(), ref_delta.flatten()
+        else:
+            obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
+        obs['state'] = np.concatenate(obs['state']).astype('float32')
+
+        if self.img_obs:
+            # update camera pos and get img
+            self.camera.wait()
+            camera_xyz = (
+                *self.robot.body_xyz[0:2],
+                self.handholds[self.next_step_index][2],
+            )
+            self.camera.track(camera_xyz)
+            obs['img'] = self.camera.dump_rgb_array()
+        return obs
 
     def generate_handholds(self):
 
@@ -165,7 +182,7 @@ class Gibbon2DCustomEnv(EnvBase):
 
         xyz = np.stack((x, y, z), axis=1).astype(np.float32)
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             for h, pos in zip(self.handhold_markers, xyz):
                 h.set_position(pos)
 
@@ -180,7 +197,6 @@ class Gibbon2DCustomEnv(EnvBase):
     def reset(self):
         if self.state_id >= 0:
             self._p.restoreState(self.state_id)
-
         self.timestep = 0
         self.ref_timestep = 0
         self.done = False
@@ -212,7 +228,7 @@ class Gibbon2DCustomEnv(EnvBase):
         if not self.ref_traj:
             self.handholds = self.generate_handholds()
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             for h, pos in zip(self.handhold_markers, self.handholds):
                 h.set_position(pos)
 
@@ -243,7 +259,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.robot.feet_contact[hand] = 1
         self.robot_state[hand - 2] = 1
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             xyz = self.robot.feet_xyz[hand]
             self.grab_hand_marker.set_position(xyz)
 
@@ -252,8 +268,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.prev_next_step_index = 1
         self.prev_grab_cids = self.grab_constraint_ids.copy()
 
-        state = np.concatenate(self.get_observation_components())
-        return state.astype('float32')  # TODO(js): make float32 from beginning
+        return self.get_observation_components()
 
     def step(self, action):
         self.timestep += 1
@@ -337,7 +352,7 @@ class Gibbon2DCustomEnv(EnvBase):
         )
         done = self.done or max_time_reached or max_step_reached or unrecoverable
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             self.target_marker.set_position(target)
             self.free_hand_marker.set_position(free_arm_xyz)
 
@@ -345,8 +360,8 @@ class Gibbon2DCustomEnv(EnvBase):
         if done or self.timestep == self.max_timestep - 1:
             info["curriculum_metric"] = self.next_step_index
 
-        state = np.concatenate(self.get_observation_components())
-        return state.astype('float32'), reward, done, info
+        state = self.get_observation_components()
+        return state, reward, done, info
 
     def apply_grab_action(self, grab_action):
 
@@ -372,7 +387,7 @@ class Gibbon2DCustomEnv(EnvBase):
             )
             self.grab_constraint_ids[self.free_arm_id] = id
 
-            if self.is_rendered:
+            if self.is_rendered or self.img_obs:
                 self.grab_hand_marker.set_position(xyz)
 
         cur_grab_duration = self.grab_duration[self.grab_arm_id]
@@ -390,7 +405,7 @@ class Gibbon2DCustomEnv(EnvBase):
             )
             self.grab_constraint_ids[self.grab_arm_id] = -1
 
-            if self.is_rendered:
+            if self.is_rendered or self.img_obs:
                 self.grab_hand_marker.set_position((0, -1000, 0))
 
         # Keep track number of consecutive frames each hand has grabbed
@@ -458,7 +473,7 @@ class Gibbon2DPointMassEnv(gym.Env):
 
     num_steps = 30
 
-    def __init__(self, noise_stdev=0.0, **kwargs):
+    def __init__(self, noise_stdev=0.0, img_obs=True, **kwargs):
         self.device = kwargs.get("device", "cpu")
         self.is_rendered = kwargs.get("render", False)
         self.num_parallel = kwargs.get("num_parallel", 4)
@@ -472,12 +487,14 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.curriculum = kwargs.get("curriculum", self.max_curriculum)
         self.advance_threshold = 15
         self.noise_stdev = noise_stdev
+        self.img_obs = img_obs
 
         print(f"{self.lookahead=}")
         print(f"{self.curriculum=}")
         print(f"{self.min_grab_duration=}")
         print(f"{self.max_grab_duration=}")
         print(f"{self.noise_stdev=}")
+        print(f"{self.img_obs=}")
 
         P = self.num_parallel
         N = self.num_steps
@@ -491,13 +508,20 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.body_positions = torch.zeros((P, 2), device=D)
         self.body_velocities = torch.zeros((P, 2), device=D)
 
+        if self.is_rendered or self.img_obs:
+            self.enable_rendering()
+
         # grab + target length
         high = np.ones(2, dtype="f4")
         self.action_space = gym.spaces.Box(-high, high, dtype="f4")
 
         # body_vel + grab_status + handhold positions (x3)
         high = np.inf * np.ones(3 + (L + 1) * 2, dtype="f4")  # TODO(js): adjust lookahead length
-        self.observation_space = gym.spaces.Box(-high, high, dtype="f4")
+        obs_space = {}
+        obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
+        if self.img_obs:
+            obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+        self.observation_space = gym.spaces.Dict(obs_space)
 
         self._dr = torch.zeros((P, N + L), device=D)
         self._dtheta = torch.zeros((P, N + L), device=D)
@@ -514,39 +538,43 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.grab_flags = torch.zeros(shape, device=D).bool()
         self.grab_durations = torch.zeros(shape, device=D).long()
         self.episode_rewards = torch.zeros(shape, device=D)
+            
+    def enable_rendering(self):
+        """
+            Creates Camera object and sets up pybullet for rendering
+            If img_obs is enabled, GUI will be disabled
+        """
+        from bullet.utils import BulletClient, Camera, OffscreenCamera, StadiumScene
+        bc_mode = pybullet.GUI if not self.img_obs else pybullet.DIRECT
+        self._p = BulletClient(bc_mode, fps=1 / self.control_step)
 
-        if self.is_rendered:
-            from bullet.utils import BulletClient, Camera, StadiumScene
-
-            bc_mode = pybullet.GUI if self.is_rendered else pybullet.DIRECT
-            self._p = BulletClient(bc_mode, fps=1 / self.control_step)
-
-            bc = self._p
-            bc.configureDebugVisualizer(bc.COV_ENABLE_RENDERING, 0)
+        bc = self._p
+        bc.configureDebugVisualizer(bc.COV_ENABLE_RENDERING, 0)
+        if not self.img_obs:
             bc.configureDebugVisualizer(bc.COV_ENABLE_GUI, 0)
             bc.configureDebugVisualizer(bc.COV_ENABLE_KEYBOARD_SHORTCUTS, 0)
             bc.configureDebugVisualizer(bc.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
             bc.configureDebugVisualizer(bc.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
             bc.configureDebugVisualizer(bc.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
 
-            self.scene = StadiumScene(
-                self._p,
-                gravity=9.8,
-                timestep=self.sim_dt,
-                frame_skip=1,
-            )
-            self.scene.initialize(remove_ground=True)
-            self.camera = Camera(self._p, fps=1 / self.control_step)
+        self.scene = StadiumScene(
+            self._p,
+            gravity=9.8,
+            timestep=self.sim_dt,
+            frame_skip=1,
+        )
+        self.scene.initialize(remove_ground=True)
+        self.camera = Camera(self._p, fps=1 / self.control_step) if not self.img_obs else OffscreenCamera(self._p, fps=1 / self.control_step)
+        self.handhold_markers = [VSphere(bc, 0.05) for _ in range(self.num_steps)]
+        colour = (0.6, 0.63, 0.66, 1)
+        self.body_marker = VSphere(bc, 0.06, rgba=colour)
+        self.target_length_marker = VCylinder(bc, 0.01, 0.2, rgba=colour)
+        self.target_handhold_marker = VSphere(bc, 0.055, rgba=(0, 0, 1, 1))
 
-            self.handhold_markers = [VSphere(bc, 0.05) for _ in range(self.num_steps)]
-            colour = (0.6, 0.63, 0.66, 1)
-            self.body_marker = VSphere(bc, 0.06, rgba=colour)
-            self.target_length_marker = VCylinder(bc, 0.01, 0.2, rgba=colour)
-            self.target_handhold_marker = VSphere(bc, 0.055, rgba=(0, 0, 1, 1))
+        # For rendering only
+        self._last_body_position = (0, 0, 0)
 
-            # For rendering only
-            self._last_body_position = (0, 0, 0)
-
+        if not self.img_obs:
             bc.configureDebugVisualizer(bc.COV_ENABLE_RENDERING, 1)
 
             self._handle_keyboard = types.MethodType(EnvBase._handle_keyboard, self)
@@ -573,11 +601,19 @@ class Gibbon2DPointMassEnv(gym.Env):
         deltas = (next_handholds + noise) - self.body_positions[:, None]
 
         normalized_durations = self.grab_durations / self.max_grab_duration
-        return (
-            self.body_velocities,
-            normalized_durations,
-            deltas.flatten(1, 2),
-        )
+
+        obs = {}
+        state = self.body_velocities, normalized_durations, deltas.flatten(1, 2)
+        obs['state'] = torch.cat(state, dim=-1)[0].numpy()
+        if self.img_obs:
+            # update camera pos and get img
+            camera_xyz = (
+                *self.body_positions[0],
+                0
+            )
+            self.camera.track(camera_xyz)
+            obs['img'] = self.camera.dump_rgb_array()
+        return obs
 
     def reset(self, indices=None):
         # Used in render mode, trigger by keyboard
@@ -605,13 +641,12 @@ class Gibbon2DPointMassEnv(gym.Env):
         new_handholds = self.generate_handholds()
         self.handholds[indices] = new_handholds[indices]
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             self.camera.lookat((0, 0, 0))
             for h, (x, z) in zip(self.handhold_markers, self.handholds[0]):
                 h.set_position((x, 0, z))
 
-        states = torch.cat(self.get_observation_components(), dim=-1)
-        return states[0].numpy()
+        return self.get_observation_components()
 
     def step(self, actions):
         if isinstance(actions, np.ndarray):
@@ -715,8 +750,6 @@ class Gibbon2DPointMassEnv(gym.Env):
         )
         dones = dones.bool()
 
-        states = torch.cat(self.get_observation_components(), dim=-1)
-
         info = {
             "bad_mask": (~max_step_reached).float(),
             "just_grabbed": set_grab,
@@ -730,7 +763,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         #     reset_indices = self._all[dones.squeeze(-1)]
         #     states = self.reset(indices=reset_indices)
 
-        if self.is_rendered:
+        if self.is_rendered or self.img_obs:
             x0, z0 = self.body_positions[0]
             self.body_marker.set_position((x0, 0, z0))
 
@@ -766,7 +799,7 @@ class Gibbon2DPointMassEnv(gym.Env):
             # rewards = rewards[0]
             # dones = dones[0]
 
-        states = states[0].numpy()
+        states = self.get_observation_components()
         rewards = rewards.item()
         dones = dones.item()
         return states, rewards, dones, info
