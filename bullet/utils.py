@@ -214,7 +214,7 @@ class Camera:
 
 
 class OffscreenCamera(Camera):  # for rendering scene w/o GUI
-    def __init__(self, bc, fps=60, dist=2.5, yaw=0, pitch=0, use_egl=False, width=480, height=480):
+    def __init__(self, bc, fps=60, dist=1.5, yaw=0, pitch=0, use_egl=False, width=80, height=80):
         super().__init__(bc, fps=fps, dist=dist, yaw=yaw, pitch=pitch, use_egl=use_egl)
         self.width = width
         self.height = height
