@@ -29,7 +29,9 @@ for observation_mode in ["FO", "PO"]:
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
-            'noise_stdev': 0.0 if observation_mode == "FO" else 0.01,
+            'noise_body_sd': 0.0 if observation_mode == "FO" else 0.01,
+            'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.01,
+            'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.01,
         }
     )
 
@@ -52,7 +54,10 @@ class EnvBase(gym.Env):
         remove_ground=False,
         use_egl=False,
         use_ffmpeg=False,
-        img_obs=True
+        img_obs=True,
+        img_width=80,
+        img_height=80,
+        camera_dist=1.5
     ):
         self.robot_class = robot_class
 
@@ -61,6 +66,9 @@ class EnvBase(gym.Env):
         self.use_egl = use_egl
         self.use_ffmpeg = use_ffmpeg
         self.img_obs = img_obs
+        self.img_width = img_width
+        self.img_height = img_height
+        self.camera_dist = camera_dist
 
         self.scene = None
         self.physics_client_id = -1
@@ -132,7 +140,7 @@ class EnvBase(gym.Env):
         if (self.is_rendered or self.use_egl) and not self.img_obs:
             self.camera = Camera(self._p, render_fps, use_egl=self.use_egl)
         elif self.img_obs:
-            self.camera = OffscreenCamera(self._p, render_fps, use_egl=self.use_egl)
+            self.camera = OffscreenCamera(self._p, render_fps, use_egl=self.use_egl, dist=self.camera_dist, width=self.img_width, height=self.img_height)
 
         # self.state_id = self._p.saveState()
 

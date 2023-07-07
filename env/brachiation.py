@@ -44,11 +44,13 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 1
 
-    def __init__(self, ref_traj=False, noise_stdev=0.0, **kwargs):
+    def __init__(self, ref_traj=False, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
         super().__init__(self.robot_class, remove_ground=True, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
-        self.noise_stdev = noise_stdev
+        self.noise_body_sd = noise_body_sd
+        self.noise_handholds_sd = noise_handholds_sd
+        self.noise_reftraj_sd = noise_reftraj_sd
 
         basepath = os.path.join(parent_dir, "data", "objects", "misc")
         filename = os.path.join(basepath, "plane_stadium.sdf")
@@ -118,11 +120,12 @@ class Gibbon2DCustomEnv(EnvBase):
     def get_observation_components(self):
         k = self.next_step_index
         targets = self.handholds[k - 1 : k + self.lookahead]
-        noise = np.random.normal(0.0, self.noise_stdev, targets.shape)
-        target_delta = (targets + noise) - self.robot.body_xyz
+        noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, targets.shape)
+        target_delta = (targets + noise_handholds) - self.robot.body_xyz  # with noise
 
         window = slice(self.ref_timestep + 1, self.ref_timestep + 30, 5)
-        ref_delta = self.ref_xyz[window] - self.robot.body_xyz
+        noise_reftraj = np.random.normal(0.0, self.noise_reftraj_sd, self.ref_xyz[window].shape)
+        ref_delta = (self.ref_xyz[window] + noise_reftraj) - self.robot.body_xyz  # with noise
 
         pitch = self.robot.body_rpy[1]
         cos_ = math.cos(-pitch)
@@ -135,11 +138,13 @@ class Gibbon2DCustomEnv(EnvBase):
         ref_delta[:, 0] = ref_delta[:, 0] * cos_ - ref_delta[:, 2] * sin_
         ref_delta[:, 2] = ref_delta[:, 0] * sin_ + ref_delta[:, 2] * cos_
 
+        noise_body = np.random.normal(0.0, self.noise_body_sd, self.robot_state.shape)
+        robot_state_out = self.robot_state + noise_body  # TODO(js): different noise scales?
         obs = {}
         if self.ref_traj:
-            obs['state'] = self.robot_state, target_delta.flatten(), ref_delta.flatten()
+            obs['state'] = robot_state_out, target_delta.flatten(), ref_delta.flatten()
         else:
-            obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
+            obs['state'] = robot_state_out, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
         obs['state'] = np.concatenate(obs['state']).astype('float32')
 
         if self.img_obs:
