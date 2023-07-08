@@ -52,7 +52,7 @@ class WalkerBase:
             physicsClientId=self._p._client,
         )
 
-    def calc_state(self):
+    def calc_state(self, noise_body_sd=0.0):
 
         pybullet.getJointStates2(
             self.id,
@@ -99,6 +99,9 @@ class WalkerBase:
         self.joint_speeds[self.joint_speeds < -5] = -5
         self.joint_speeds[self.joint_speeds > +5] = +5
 
+        if noise_body_sd > 0:
+            return self.calc_noisy_state(noise_body_sd)
+
         state = concatenate(
             (
                 [height, vx, vy, vz, roll, pitch],
@@ -110,6 +113,47 @@ class WalkerBase:
         )
 
         return state
+    
+    def calc_noisy_state(self, noise_body_sd=0.0):
+        """
+            Calculates noisy state w/o modifying member variables
+            Should be called after calc_state() as it removes extra sim queries and state calculations
+        """
+        body_xyz_n = self.body_xyz + np.random.normal(0.0, noise_body_sd, self.body_xyz.shape)
+        feet_xyz_n = self.feet_xyz + np.random.normal(0.0, noise_body_sd, self.feet_xyz.shape)
+        body_world_vel_n = self.body_world_vel +np.random.normal(0.0, noise_body_sd, self.body_world_vel.shape)
+        body_quat_n = self.body_quat +np.random.normal(0.0, noise_body_sd, self.body_quat.shape)
+
+        # In 2D, pitch is better calculated if y-first
+        pitch_n, roll_n, yaw_n = R.from_quat(body_quat_n).as_euler("yxz").astype("f4")
+
+        yaw_cos = math.cos(-yaw_n)
+        yaw_sin = math.sin(-yaw_n)
+        vxg_n, vyg_n, vzg_n = body_world_vel_n
+        body_vel_n = (
+            yaw_cos * vxg_n - yaw_sin * vyg_n,
+            yaw_sin * vxg_n + yaw_cos * vyg_n,
+            vzg_n,
+        )
+        vx_n, vy_n, vz_n = body_vel_n
+
+        # bottleneck is faster if data is ndarray, otherwise use built-in min()
+        height_n = body_xyz_n[2] - nanmin(feet_xyz_n[:, 2])
+
+        joint_angles_n = self.joint_angles + np.random.normal(0.0, noise_body_sd, self.joint_angles.shape)
+        joint_speeds_n = self.joint_speeds + np.random.normal(0.0, noise_body_sd, self.joint_speeds.shape)
+
+        state_n = concatenate(
+            (
+                [height_n, vx_n, vy_n, vz_n, roll_n, pitch_n],
+                np.sin(joint_angles_n),
+                np.cos(joint_angles_n),
+                joint_speeds_n,
+                self.feet_contact,
+            )
+        )
+
+        return state_n
 
     def initialize(self):
         self.load_robot_model()
@@ -222,6 +266,7 @@ class WalkerBase:
         quat=None,
         vel=None,
         ang_vel=None,
+        noise_body_sd=0.0
     ):
         base_joint_angles = np.copy(self.base_joint_angles)
         base_orientation = np.copy(self.base_orientation)
@@ -252,7 +297,7 @@ class WalkerBase:
         self.feet_contact.fill(0.0)
         self.feet_xyz.fill(0.0)
 
-        robot_state = self.calc_state()
+        robot_state = self.calc_state(noise_body_sd=noise_body_sd)
         return robot_state
 
     def reset_joint_states(self, positions, velocities):
@@ -358,9 +403,9 @@ class Gibbon3D(WalkerBase):
             self.base_joint_angles[[14]] = -140 * DEG2RAD  # shoulder y
             self.base_joint_angles[[19]] = -170 * DEG2RAD  # shoulder y
 
-    def calc_state(self):
+    def calc_state(self, noise_body_sd=0.0):
         # reverse for monkey
-        state = super().calc_state()
+        state = super().calc_state(noise_body_sd=noise_body_sd)
         state[0] = nanmax(self.feet_xyz[:, 2]) - self.body_xyz[2]
         return state
 

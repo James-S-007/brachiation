@@ -138,13 +138,11 @@ class Gibbon2DCustomEnv(EnvBase):
         ref_delta[:, 0] = ref_delta[:, 0] * cos_ - ref_delta[:, 2] * sin_
         ref_delta[:, 2] = ref_delta[:, 0] * sin_ + ref_delta[:, 2] * cos_
 
-        noise_body = np.random.normal(0.0, self.noise_body_sd, self.robot_state.shape)
-        robot_state_out = self.robot_state + noise_body  # TODO(js): different noise scales?
         obs = {}
         if self.ref_traj:
-            obs['state'] = robot_state_out, target_delta.flatten(), ref_delta.flatten()
+            obs['state'] = self.robot_state, target_delta.flatten(), ref_delta.flatten()
         else:
-            obs['state'] = robot_state_out, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
+            obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
         obs['state'] = np.concatenate(obs['state']).astype('float32')
 
         if self.img_obs:
@@ -211,6 +209,7 @@ class Gibbon2DCustomEnv(EnvBase):
             random_mirror=self.robot_random_start,
             pos=self.robot_init_position,
             vel=self.robot_init_velocity,
+            noise_body_sd=self.noise_body_sd
         )
 
         traj_id = self.np_random.randint(len(self.traj_data))
@@ -309,7 +308,7 @@ class Gibbon2DCustomEnv(EnvBase):
             SCAL(0.1, self.robot.joint_speeds)
 
         # Order matters here, calc_state -> grab_action -> set contact
-        self.robot_state = self.robot.calc_state()
+        self.robot_state = self.robot.calc_state(noise_body_sd=self.noise_body_sd)
         self.calc_hand_state()
         self.apply_grab_action(grab_action)
 
@@ -521,7 +520,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         self.action_space = gym.spaces.Box(-high, high, dtype="f4")
 
         # body_vel + grab_status + handhold positions (x3)
-        high = np.inf * np.ones(3 + (L + 1) * 2, dtype="f4")  # TODO(js): adjust lookahead length
+        high = np.inf * np.ones(3 + (L + 1) * 2, dtype="f4")
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
         if self.img_obs:
