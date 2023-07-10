@@ -67,6 +67,7 @@ class Gibbon2DCustomEnv(EnvBase):
         high = np.inf * np.ones(RO + K, dtype=np.float32)
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
+        obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="uint8")
         if self.img_obs:
             obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
@@ -144,6 +145,7 @@ class Gibbon2DCustomEnv(EnvBase):
         else:
             obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
         obs['state'] = np.concatenate(obs['state']).astype('float32')
+        obs['handholds_grabbed'] = self.next_step_index - 1
 
         if self.img_obs:
             # update camera pos and get img
