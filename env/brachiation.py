@@ -145,7 +145,7 @@ class Gibbon2DCustomEnv(EnvBase):
         else:
             obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
         obs['state'] = np.concatenate(obs['state']).astype('float32')
-        obs['handholds_grabbed'] = self.next_step_index - 1
+        obs['handholds_grabbed'] = self.next_step_index
 
         if self.img_obs:
             # update camera pos and get img
@@ -199,7 +199,7 @@ class Gibbon2DCustomEnv(EnvBase):
             )
         )
 
-    def reset(self):
+    def reset(self, starting_traj_id=None):
         if self.state_id >= 0:
             self._p.restoreState(self.state_id)
         self.timestep = 0
@@ -214,7 +214,7 @@ class Gibbon2DCustomEnv(EnvBase):
             noise_body_sd=self.noise_body_sd
         )
 
-        traj_id = self.np_random.randint(len(self.traj_data))
+        traj_id = self.np_random.randint(len(self.traj_data)) if starting_traj_id is None else starting_traj_id
         self.current_traj_id = traj_id
         ref_xyz, ref_swing, handholds = self.traj_data[traj_id]
 
