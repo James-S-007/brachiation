@@ -121,11 +121,12 @@ class WalkerBase:
         """
         body_xyz_n = self.body_xyz + np.random.normal(0.0, noise_body_sd, self.body_xyz.shape)
         feet_xyz_n = self.feet_xyz + np.random.normal(0.0, noise_body_sd, self.feet_xyz.shape)
-        body_world_vel_n = self.body_world_vel +np.random.normal(0.0, noise_body_sd, self.body_world_vel.shape)
-        body_quat_n = self.body_quat +np.random.normal(0.0, noise_body_sd, self.body_quat.shape)
+        body_world_vel_n = self.body_world_vel + np.random.normal(0.0, noise_body_sd, self.body_world_vel.shape)
 
         # In 2D, pitch is better calculated if y-first
-        pitch_n, roll_n, yaw_n = R.from_quat(body_quat_n).as_euler("yxz").astype("f4")
+        pitch_roll_yaw = np.array(R.from_quat(self.body_quat).as_euler("yxz").astype("f4"))
+        pitch_roll_yaw += np.random.normal(0.0, noise_body_sd, pitch_roll_yaw.shape)
+        pitch_n, roll_n, yaw_n = pitch_roll_yaw[0], pitch_roll_yaw[1], pitch_roll_yaw[2]
 
         yaw_cos = math.cos(-yaw_n)
         yaw_sin = math.sin(-yaw_n)
