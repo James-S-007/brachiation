@@ -44,7 +44,7 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 1
 
-    def __init__(self, ref_traj=False, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
+    def __init__(self, ref_traj=False, single_traj=False, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
         super().__init__(self.robot_class, remove_ground=True, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
@@ -99,6 +99,11 @@ class Gibbon2DCustomEnv(EnvBase):
         self.ref_swing = np.zeros(len(self.ref_xyz), dtype=np.float32)
 
         self.load_traj_data_file()
+
+        if single_traj:
+            self.traj_num = self.np_random.randint(len(self.traj_data))
+        else:
+            self.traj_num = None
 
     def load_traj_data_file(self):
         filename = f"simple_trajs_{self.curriculum}.pickle"
@@ -199,7 +204,7 @@ class Gibbon2DCustomEnv(EnvBase):
             )
         )
 
-    def reset(self, starting_traj_id=None):
+    def reset(self):
         if self.state_id >= 0:
             self._p.restoreState(self.state_id)
         self.timestep = 0
@@ -214,7 +219,7 @@ class Gibbon2DCustomEnv(EnvBase):
             noise_body_sd=self.noise_body_sd
         )
 
-        traj_id = self.np_random.randint(len(self.traj_data)) if starting_traj_id is None else starting_traj_id
+        traj_id = self.np_random.randint(len(self.traj_data)) if self.traj_num is None else self.traj_num
         self.current_traj_id = traj_id
         ref_xyz, ref_swing, handholds = self.traj_data[traj_id]
 

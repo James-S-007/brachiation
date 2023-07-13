@@ -29,6 +29,7 @@ for observation_mode in ["FO", "PO"]:
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
+            'single_traj': True,
             'noise_body_sd': 0.0 if observation_mode == "FO" else 0.01,
             'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.01,
             'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.01,
