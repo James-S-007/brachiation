@@ -44,7 +44,7 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 1
 
-    def __init__(self, ref_traj=False, single_traj=False, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
+    def __init__(self, ref_traj=False, traj_num=None, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
         super().__init__(self.robot_class, remove_ground=True, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
@@ -100,10 +100,7 @@ class Gibbon2DCustomEnv(EnvBase):
 
         self.load_traj_data_file()
 
-        if single_traj:
-            self.traj_num = self.np_random.randint(len(self.traj_data))
-        else:
-            self.traj_num = None
+        self.traj_num = traj_num
 
     def load_traj_data_file(self):
         filename = f"simple_trajs_{self.curriculum}.pickle"

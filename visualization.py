@@ -25,7 +25,7 @@ def main():
 
     # Start Env
     imgs = []
-    noiseless_img = env.reset(starting_traj_id=1)['img']    
+    noiseless_img = env.reset()['img']    
 
     # Remove handmarkers and record noiseless handholds
     handholds_noiseless = [h._pos.copy() for h in env.handhold_markers]
@@ -45,7 +45,7 @@ def main():
             cv2.waitKey(0)
     
     clip = mpy.ImageSequenceClip(imgs, fps=FPS)
-    clip.write_gif('brachiation_noise.gif', fps=FPS)
+    clip.write_gif(f'brachiation_noise_{NOISE_BODY}_{NOISE_HANDHOLDS}.gif', fps=FPS)
 
 
 def add_noise_robot(pybullet_client, robot, env):
