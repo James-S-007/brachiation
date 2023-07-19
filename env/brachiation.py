@@ -67,6 +67,7 @@ class Gibbon2DCustomEnv(EnvBase):
         high = np.inf * np.ones(RO + K, dtype=np.float32)
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
+        obs_space['noisy_state'] = gym.spaces.Box(-high, high, dtype="f4")
         obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="uint8")
         if self.img_obs:
             obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
@@ -124,11 +125,13 @@ class Gibbon2DCustomEnv(EnvBase):
         k = self.next_step_index
         targets = self.handholds[k - 1 : k + self.lookahead]
         noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, targets.shape)
-        target_delta = (targets + noise_handholds) - self.robot.body_xyz  # with noise
+        target_delta = targets - self.robot.body_xyz
+        noisy_target_delta = (targets + noise_handholds) - self.robot.body_xyz  # with noise
 
         window = slice(self.ref_timestep + 1, self.ref_timestep + 30, 5)
         noise_reftraj = np.random.normal(0.0, self.noise_reftraj_sd, self.ref_xyz[window].shape)
-        ref_delta = (self.ref_xyz[window] + noise_reftraj) - self.robot.body_xyz  # with noise
+        ref_delta = self.ref_xyz[window] - self.robot.body_xyz
+        noisy_ref_delta = (self.ref_xyz[window] + noise_reftraj) - self.robot.body_xyz  # with noise
 
         pitch = self.robot.body_rpy[1]
         cos_ = math.cos(-pitch)
@@ -144,9 +147,12 @@ class Gibbon2DCustomEnv(EnvBase):
         obs = {}
         if self.ref_traj:
             obs['state'] = self.robot_state, target_delta.flatten(), ref_delta.flatten()
+            obs['noisy_state'] = self.noisy_robot_state, noisy_target_delta.flatten(), noisy_ref_delta.flatten()
         else:
             obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
+            obs['noisy_state'] = self.noisy_robot_state, noisy_target_delta.flatten(), np.zeros_like(noisy_ref_delta.flatten())
         obs['state'] = np.concatenate(obs['state']).astype('float32')
+        obs['noisy_state'] = np.concatenate(obs['noisy_state']).astype('float32')
         obs['handholds_grabbed'] = self.next_step_index
 
         if self.img_obs:
@@ -208,7 +214,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.ref_timestep = 0
         self.done = False
 
-        self.robot_state = self.robot.reset(
+        self.robot_state, self.noisy_robot_state = self.robot.reset(
             random_pose=self.robot_random_start,
             random_mirror=self.robot_random_start,
             pos=self.robot_init_position,
@@ -266,6 +272,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.grab_constraint_ids[hand] = id
         self.robot.feet_contact[hand] = 1
         self.robot_state[hand - 2] = 1
+        self.noisy_robot_state[hand - 2] = 1
 
         if self.is_rendered or self.img_obs:
             xyz = self.robot.feet_xyz[hand]
@@ -312,7 +319,7 @@ class Gibbon2DCustomEnv(EnvBase):
             SCAL(0.1, self.robot.joint_speeds)
 
         # Order matters here, calc_state -> grab_action -> set contact
-        self.robot_state = self.robot.calc_state(noise_body_sd=self.noise_body_sd)
+        self.robot_state, self.noisy_robot_state = self.robot.calc_state(noise_body_sd=self.noise_body_sd)  # TODO(js)
         self.calc_hand_state()
         self.apply_grab_action(grab_action)
 
@@ -320,6 +327,7 @@ class Gibbon2DCustomEnv(EnvBase):
         is_grabbing = self.grab_constraint_ids >= 0
         self.robot.feet_contact[:] = is_grabbing.astype(np.float32)
         self.robot_state[-2:] = self.robot.feet_contact
+        self.noisy_robot_state[-2:] = self.robot.feet_contact
 
         just_grabbed = is_grabbing * (self.prev_grab_cids == -1)
         # just_released = ~is_grabbing * (self.prev_grab_cids > -1)

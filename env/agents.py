@@ -53,7 +53,6 @@ class WalkerBase:
         )
 
     def calc_state(self, noise_body_sd=0.0):
-
         pybullet.getJointStates2(
             self.id,
             self.joint_ids,
@@ -99,9 +98,8 @@ class WalkerBase:
         self.joint_speeds[self.joint_speeds < -5] = -5
         self.joint_speeds[self.joint_speeds > +5] = +5
 
-        if noise_body_sd > 0:
-            return self.calc_noisy_state(noise_body_sd)
 
+        noisy_state = self.calc_noisy_state(noise_body_sd)
         state = concatenate(
             (
                 [height, vx, vy, vz, roll, pitch],
@@ -111,8 +109,7 @@ class WalkerBase:
                 self.feet_contact,
             )
         )
-
-        return state
+        return state, noisy_state
     
     def calc_noisy_state(self, noise_body_sd=0.0):
         """
@@ -298,8 +295,9 @@ class WalkerBase:
         self.feet_contact.fill(0.0)
         self.feet_xyz.fill(0.0)
 
-        robot_state = self.calc_state(noise_body_sd=noise_body_sd)
-        return robot_state
+        # robot_state, noisy_state = self.calc_state(noise_body_sd=noise_body_sd)
+        robot_state, noisy_state = self.calc_state(noise_body_sd=noise_body_sd)
+        return robot_state, noisy_state
 
     def reset_joint_states(self, positions, velocities):
         pybullet.resetJointStates(
@@ -406,9 +404,9 @@ class Gibbon3D(WalkerBase):
 
     def calc_state(self, noise_body_sd=0.0):
         # reverse for monkey
-        state = super().calc_state(noise_body_sd=noise_body_sd)
-        state[0] = nanmax(self.feet_xyz[:, 2]) - self.body_xyz[2]
-        return state
+        state, noisy_state = super().calc_state(noise_body_sd=noise_body_sd)
+        state[0], noisy_state[0] = nanmax(self.feet_xyz[:, 2]) - self.body_xyz[2], nanmax(self.feet_xyz[:, 2]) - self.body_xyz[2]
+        return state, noisy_state
 
 
 class Gibbon2D(Gibbon3D):

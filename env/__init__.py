@@ -22,7 +22,7 @@ parent_dir = os.path.dirname(current_dir)
 os.sys.path.append(parent_dir)
 
 
-for observation_mode in ["FO", "PO"]:
+for observation_mode in ["FO", "PO", "Asym"]:
     register(
         id=f"{observation_mode}Gibbon2DCustomEnv-v0",
         entry_point="env.brachiation:Gibbon2DCustomEnv",
