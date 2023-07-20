@@ -222,7 +222,11 @@ class Gibbon2DCustomEnv(EnvBase):
             noise_body_sd=self.noise_body_sd
         )
 
-        traj_id = self.np_random.randint(len(self.traj_data)) if self.traj_num is None else self.traj_num
+        if len(self.traj_num) < 1:
+            traj_id = self.np_random.randint(len(self.traj_data))
+        else:
+            traj_id = self.traj_num[self.np_random.randint(len(self.traj_num))]
+
         self.current_traj_id = traj_id
         ref_xyz, ref_swing, handholds = self.traj_data[traj_id]
 
