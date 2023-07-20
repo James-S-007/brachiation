@@ -30,9 +30,9 @@ for observation_mode in ["FO", "PO", "Asym"]:
         kwargs={
             'ref_traj': True,
             'traj_num': [10,11,12,13,14,15,16,17,18,19],  # set to [] for random trajectory each time
-            'noise_body_sd': 0.0 if observation_mode == "FO" else 0.01,
-            'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.01,
-            'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.01,
+            'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
         }
     )
 
