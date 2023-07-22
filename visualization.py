@@ -25,7 +25,7 @@ def main():
 
     # Start Env
     imgs = []
-    noiseless_img = env.reset()['img']    
+    noiseless_img = env.reset()['log_img']    
 
     # Remove handmarkers and record noiseless handholds
     handholds_noiseless = [h._pos.copy() for h in env.handhold_markers]

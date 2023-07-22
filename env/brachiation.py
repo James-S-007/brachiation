@@ -70,7 +70,7 @@ class Gibbon2DCustomEnv(EnvBase):
         obs_space['noisy_state'] = gym.spaces.Box(-high, high, dtype="f4")
         obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="uint8")
         if self.img_obs:
-            obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
 
         RA = self.robot.action_space.shape[0]
@@ -162,8 +162,9 @@ class Gibbon2DCustomEnv(EnvBase):
                 *self.robot.body_xyz[0:2],
                 self.handholds[self.next_step_index][2],
             )
-            self.camera.track(camera_xyz)
-            obs['img'] = self.camera.dump_rgb_array()
+            self.camera.track(camera_xyz)  # TODO(js):
+            # get x,y positions of first ~8 handholds and set camera to there, increase view distance
+            obs['log_img'] = self.camera.dump_rgb_array()
         return obs
 
     def generate_handholds(self):
@@ -540,7 +541,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
         if self.img_obs:
-            obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
 
         self._dr = torch.zeros((P, N + L), device=D)
@@ -632,7 +633,7 @@ class Gibbon2DPointMassEnv(gym.Env):
                 0
             )
             self.camera.track(camera_xyz)
-            obs['img'] = self.camera.dump_rgb_array()
+            obs['log_img'] = self.camera.dump_rgb_array()
         return obs
 
     def reset(self, indices=None):
