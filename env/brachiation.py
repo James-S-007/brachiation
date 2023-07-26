@@ -44,13 +44,27 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 1
 
-    def __init__(self, ref_traj=False, traj_num=None, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
-        super().__init__(self.robot_class, remove_ground=True, **kwargs)
+    def __init__(self, ref_traj=False, traj_num=None, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, is_eval=False, **kwargs):
+        if is_eval:
+            camera_params = {
+                'img_width': 640,
+                'img_height': 360,
+                'camera_dist': 4.5
+            }
+        else:
+            camera_params = {
+                'img_width': 80,
+                'img_height': 80,
+                'camera_dist': 1.5
+            }
+        
+        super().__init__(self.robot_class, remove_ground=True, **camera_params, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
         self.noise_body_sd = noise_body_sd
         self.noise_handholds_sd = noise_handholds_sd
         self.noise_reftraj_sd = noise_reftraj_sd
+        self.is_eval = is_eval
 
         basepath = os.path.join(parent_dir, "data", "objects", "misc")
         filename = os.path.join(basepath, "plane_stadium.sdf")
@@ -70,7 +84,7 @@ class Gibbon2DCustomEnv(EnvBase):
         obs_space['noisy_state'] = gym.spaces.Box(-high, high, dtype="f4")
         obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="uint8")
         if self.img_obs:
-            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.height, self.camera.width, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
 
         RA = self.robot.action_space.shape[0]
@@ -158,11 +172,16 @@ class Gibbon2DCustomEnv(EnvBase):
         if self.img_obs:
             # update camera pos and get img
             self.camera.wait()
-            camera_xyz = (
-                *self.robot.body_xyz[0:2],
-                self.handholds[self.next_step_index][2],
-            )
-            self.camera.track(camera_xyz)  # TODO(js):
+
+            if not self.is_eval:
+                camera_xyz = (  # track monkey
+                    *self.robot.body_xyz[0:2],
+                    self.handholds[self.next_step_index][2],
+                )
+            else:
+                camera_xyz = self.handholds[0] + (self.handholds[5] - self.handholds[0]) / 2  # constant distant view
+            
+            self.camera.track(camera_xyz)
             # get x,y positions of first ~8 handholds and set camera to there, increase view distance
             obs['log_img'] = self.camera.dump_rgb_array()
         return obs
@@ -541,7 +560,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
         if self.img_obs:
-            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.height, self.camera.width, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
 
         self._dr = torch.zeros((P, N + L), device=D)
