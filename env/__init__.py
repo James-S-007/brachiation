@@ -33,7 +33,8 @@ for observation_mode in ["FO", "PO", "Asym"]:
             'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
-            'is_eval': False
+            'is_eval': True,
+            'noisy_img': True
         }
     )
 
@@ -59,7 +60,8 @@ class EnvBase(gym.Env):
         img_obs=True,
         img_width=80,
         img_height=80,
-        camera_dist=1.5
+        camera_dist=1.5,
+        noisy_img=True
     ):
         self.robot_class = robot_class
 
@@ -71,6 +73,7 @@ class EnvBase(gym.Env):
         self.img_width = img_width
         self.img_height = img_height
         self.camera_dist = camera_dist
+        self.noisy_img = noisy_img
 
         self.scene = None
         self.physics_client_id = -1
@@ -82,10 +85,14 @@ class EnvBase(gym.Env):
 
         self.seed()
         self.initialize_scene_and_robot()
+        if noisy_img:
+            self.init_dummy_env()
 
     def close(self):
         if self.owns_physics_client and self.physics_client_id >= 0:
             self._p.disconnect()
+        if self.owns_physics_client and self.dummy_physics_client_id is not None and self.dummy_physics_client_id >= 0:
+            self._p_dummy.disconnect()
         self.physics_client_id = -1
 
     def initialize_scene_and_robot(self):
@@ -284,3 +291,78 @@ class EnvBase(gym.Env):
 
     def get_mirror_indices(self):
         return None
+
+
+    def init_dummy_env(self):
+        """
+            Workaround to generate noisy observations without messing with dynamics of true simulator
+            Creates an additional simulator client with the same initialization
+            Can then update the robot and handhold state to the noisy versions and render images
+        """
+        if not self.noisy_img:
+            self._p_dummy = None
+            return
+        
+        bc_mode = pybullet.GUI if self.is_rendered and not self.img_obs else pybullet.DIRECT
+        render_fps = 1 / self.control_step
+        self._p_dummy = BulletClient(bc_mode, use_ffmpeg=self.use_ffmpeg, fps=render_fps)
+
+        if self.use_egl:
+            import pkgutil
+            egl = pkgutil.get_loader("eglRenderer")
+            self.egl = self._p_dummy.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+
+        self.dummy_physics_client_id = self._p_dummy._client
+
+        pc = self._p_dummy
+        pc.configureDebugVisualizer(pc.COV_ENABLE_RENDERING, 0)
+        pc.configureDebugVisualizer(pc.COV_ENABLE_SHADOWS, 0)
+        pc.configureDebugVisualizer(pc.COV_ENABLE_GUI, 0)
+        pc.configureDebugVisualizer(pc.COV_ENABLE_KEYBOARD_SHORTCUTS, 0)
+        pc.configureDebugVisualizer(pc.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
+        pc.configureDebugVisualizer(pc.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
+        pc.configureDebugVisualizer(pc.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
+
+        self.dummy_scene = StadiumScene(
+            self._p_dummy,
+            gravity=0.0,
+            timestep=self.control_step / self.llc_frame_skip / self.sim_frame_skip,
+            frame_skip=self.sim_frame_skip,
+        )
+        self.dummy_scene.initialize(self.remove_ground)
+
+        # Create floor
+        if not self.remove_ground:
+            self.dummy_ground_ids = {(self.dummy_scene.id, -1)}
+
+        # Create robot object
+        if self.robot_class is not None:
+            self.dummy_robot = self.robot_class(self._p_dummy)
+            self.dummy_robot.initialize()
+            self.dummy_robot.np_random = self.np_random
+
+        if (self.is_rendered or self.use_egl) and not self.img_obs:
+            self.camera = Camera(self._p_dummy, render_fps, use_egl=self.use_egl)  # only need one camera right?
+        elif self.img_obs:
+            self.camera = OffscreenCamera(self._p_dummy, render_fps, use_egl=self.use_egl, dist=self.camera_dist, width=self.img_width, height=self.img_height)
+
+    def set_dummy_robot_state(self, joint_angles, joint_speeds, pos, quat):
+        if not self.noisy_img:
+            return
+        
+        pybullet.resetJointStates(
+            self.dummy_robot.id,
+            self.dummy_robot.joint_ids,
+            targetValues=joint_angles,
+            targetVelocities=joint_speeds,  # TODO(js): does it matter
+            physicsClientId=self.dummy_physics_client_id,
+        )
+
+        self._p_dummy.resetBasePositionAndOrientation(self.dummy_robot.id, pos, quat)
+
+
+    def set_dummy_handholds(self, dummy_handhold_markers, noisy_pos):
+        for i, h in enumerate(dummy_handhold_markers):
+            h.set_position(noisy_pos[i])
+        
+

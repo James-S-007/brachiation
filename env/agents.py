@@ -99,7 +99,7 @@ class WalkerBase:
         self.joint_speeds[self.joint_speeds > +5] = +5
 
 
-        noisy_state = self.calc_noisy_state(noise_body_sd)
+        noisy_state, noisy_state_raw = self.calc_noisy_state(noise_body_sd)
         state = concatenate(
             (
                 [height, vx, vy, vz, roll, pitch],
@@ -109,21 +109,21 @@ class WalkerBase:
                 self.feet_contact,
             )
         )
-        return state, noisy_state
+        return state, noisy_state, noisy_state_raw
     
     def calc_noisy_state(self, noise_body_sd=0.0):
         """
             Calculates noisy state w/o modifying member variables
             Should be called after calc_state() as it removes extra sim queries and state calculations
         """
-        body_xyz_n = self.body_xyz + np.random.normal(0.0, noise_body_sd, self.body_xyz.shape)
-        feet_xyz_n = self.feet_xyz + np.random.normal(0.0, noise_body_sd, self.feet_xyz.shape)
-        body_world_vel_n = self.body_world_vel + np.random.normal(0.0, noise_body_sd, self.body_world_vel.shape)
+        body_xyz_n = self.body_xyz + np.random.normal(0.0, noise_body_sd, self.body_xyz.shape).astype('float32')
+        feet_xyz_n = self.feet_xyz + np.random.normal(0.0, noise_body_sd, self.feet_xyz.shape).astype('float32')
+        body_world_vel_n = self.body_world_vel + np.random.normal(0.0, noise_body_sd, self.body_world_vel.shape).astype('float32')
 
         # In 2D, pitch is better calculated if y-first
-        pitch_roll_yaw = np.array(R.from_quat(self.body_quat).as_euler("yxz").astype("f4"))
-        pitch_roll_yaw += np.random.normal(0.0, noise_body_sd, pitch_roll_yaw.shape)
-        pitch_n, roll_n, yaw_n = pitch_roll_yaw[0], pitch_roll_yaw[1], pitch_roll_yaw[2]
+        pitch_roll_yaw_n = np.array(R.from_quat(self.body_quat).as_euler("yxz").astype("f4"))
+        pitch_roll_yaw_n += np.random.normal(0.0, noise_body_sd, pitch_roll_yaw_n.shape).astype('float32')
+        pitch_n, roll_n, yaw_n = pitch_roll_yaw_n[0], pitch_roll_yaw_n[1], pitch_roll_yaw_n[2]
 
         yaw_cos = math.cos(-yaw_n)
         yaw_sin = math.sin(-yaw_n)
@@ -138,8 +138,15 @@ class WalkerBase:
         # bottleneck is faster if data is ndarray, otherwise use built-in min()
         height_n = body_xyz_n[2] - nanmin(feet_xyz_n[:, 2])
 
-        joint_angles_n = self.joint_angles + np.random.normal(0.0, noise_body_sd, self.joint_angles.shape)
-        joint_speeds_n = self.joint_speeds + np.random.normal(0.0, noise_body_sd, self.joint_speeds.shape)
+        joint_angles_n = self.joint_angles + np.random.normal(0.0, noise_body_sd, self.joint_angles.shape).astype('float32')
+        joint_speeds_n = self.joint_speeds + np.random.normal(0.0, noise_body_sd, self.joint_speeds.shape).astype('float32')
+
+        noisy_state_raw = {
+            'joint_angles': joint_angles_n,
+            'joint_speeds': joint_speeds_n,
+            'pos': body_xyz_n,
+            'quat': R.from_euler("yzx", pitch_roll_yaw_n).as_quat()
+        }
 
         state_n = concatenate(
             (
@@ -151,7 +158,7 @@ class WalkerBase:
             )
         )
 
-        return state_n
+        return state_n, noisy_state_raw
 
     def initialize(self):
         self.load_robot_model()
@@ -296,8 +303,8 @@ class WalkerBase:
         self.feet_xyz.fill(0.0)
 
         # robot_state, noisy_state = self.calc_state(noise_body_sd=noise_body_sd)
-        robot_state, noisy_state = self.calc_state(noise_body_sd=noise_body_sd)
-        return robot_state, noisy_state
+        robot_state, noisy_state, noisy_state_raw = self.calc_state(noise_body_sd=noise_body_sd)
+        return robot_state, noisy_state, noisy_state_raw
 
     def reset_joint_states(self, positions, velocities):
         pybullet.resetJointStates(
@@ -404,9 +411,9 @@ class Gibbon3D(WalkerBase):
 
     def calc_state(self, noise_body_sd=0.0):
         # reverse for monkey
-        state, noisy_state = super().calc_state(noise_body_sd=noise_body_sd)
+        state, noisy_state, noisy_state_raw = super().calc_state(noise_body_sd=noise_body_sd)
         state[0], noisy_state[0] = nanmax(self.feet_xyz[:, 2]) - self.body_xyz[2], nanmax(self.feet_xyz[:, 2]) - self.body_xyz[2]
-        return state, noisy_state
+        return state, noisy_state, noisy_state_raw
 
 
 class Gibbon2D(Gibbon3D):

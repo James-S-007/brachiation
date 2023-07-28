@@ -57,7 +57,7 @@ class Gibbon2DCustomEnv(EnvBase):
                 'img_height': 80,
                 'camera_dist': 1.5
             }
-        
+
         super().__init__(self.robot_class, remove_ground=True, **camera_params, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
@@ -70,6 +70,8 @@ class Gibbon2DCustomEnv(EnvBase):
         filename = os.path.join(basepath, "plane_stadium.sdf")
         id_ = self._p.loadSDF(filename, useMaximalCoordinates=True)[0]
         self._p.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
+        id_ = self._p_dummy.loadSDF(filename, useMaximalCoordinates=True)[0]
+        self._p_dummy.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
 
         # Fix-ordered Curriculum
         self.curriculum = 9
@@ -109,6 +111,10 @@ class Gibbon2DCustomEnv(EnvBase):
             self.handhold_markers = [
                 VSphere(self._p, 0.05) for _ in range(self.num_steps)
             ]
+            if self.noisy_img:
+                self.dummy_handhold_markers = [
+                    VSphere(self._p_dummy, 0.05) for _ in range(self.num_steps)
+                ]
 
         self.ref_xyz = np.zeros((self.max_timestep * 2, 3), dtype=np.float32)
         self.ref_swing = np.zeros(len(self.ref_xyz), dtype=np.float32)
@@ -138,9 +144,11 @@ class Gibbon2DCustomEnv(EnvBase):
     def get_observation_components(self):
         k = self.next_step_index
         targets = self.handholds[k - 1 : k + self.lookahead]
-        noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, targets.shape)
+        noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, self.handholds.shape).astype(self.handholds.dtype)
+        targets_noise = noise_handholds[k-1:k+self.lookahead]
+        self.set_dummy_handholds(self.dummy_handhold_markers, self.dummy_handholds + noise_handholds)
         target_delta = targets - self.robot.body_xyz
-        noisy_target_delta = (targets + noise_handholds) - self.robot.body_xyz  # with noise
+        noisy_target_delta = (targets + targets_noise) - self.robot.body_xyz  # with noise
 
         window = slice(self.ref_timestep + 1, self.ref_timestep + 30, 5)
         noise_reftraj = np.random.normal(0.0, self.noise_reftraj_sd, self.ref_xyz[window].shape)
@@ -234,13 +242,25 @@ class Gibbon2DCustomEnv(EnvBase):
         self.ref_timestep = 0
         self.done = False
 
-        self.robot_state, self.noisy_robot_state = self.robot.reset(
+        self.robot_state, self.noisy_robot_state, noisy_robot_state_raw = self.robot.reset(
             random_pose=self.robot_random_start,
             random_mirror=self.robot_random_start,
             pos=self.robot_init_position,
             vel=self.robot_init_velocity,
             noise_body_sd=self.noise_body_sd
         )
+
+        # self.set_dummy_robot_state(**noisy_robot_state_raw)
+        self.dummy_robot.reset(
+            random_pose=False,
+            random_mirror=False,
+            pos=noisy_robot_state_raw['pos'],
+            quat=noisy_robot_state_raw['quat'],
+            vel=None,
+            ang_vel=None,
+            noise_body_sd=0.0
+        )
+        self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
 
         if len(self.traj_num) < 1:
             traj_id = self.np_random.randint(len(self.traj_data))
@@ -269,6 +289,8 @@ class Gibbon2DCustomEnv(EnvBase):
         if self.is_rendered or self.img_obs:
             for h, pos in zip(self.handhold_markers, self.handholds):
                 h.set_position(pos)
+
+        self.dummy_handholds = self.handholds.copy()
 
         if not self.state_id >= 0:
             self.state_id = self._p.saveState()
@@ -343,7 +365,18 @@ class Gibbon2DCustomEnv(EnvBase):
             SCAL(0.1, self.robot.joint_speeds)
 
         # Order matters here, calc_state -> grab_action -> set contact
-        self.robot_state, self.noisy_robot_state = self.robot.calc_state(noise_body_sd=self.noise_body_sd)  # TODO(js)
+        self.robot_state, self.noisy_robot_state, noisy_robot_state_raw = self.robot.calc_state(noise_body_sd=self.noise_body_sd)
+        self.dummy_robot.reset(
+            random_pose=False,
+            random_mirror=False,
+            pos=noisy_robot_state_raw['pos'],
+            quat=noisy_robot_state_raw['quat'],
+            vel=None,
+            ang_vel=None,
+            noise_body_sd=0.0
+        )
+        self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
+
         self.calc_hand_state()
         self.apply_grab_action(grab_action)
 
