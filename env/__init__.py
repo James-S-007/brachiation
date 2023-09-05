@@ -29,12 +29,14 @@ for observation_mode in ["FO", "PO", "Asym"]:
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
-            'traj_num': [10,11,12,13,14,15,16,17,18,19],  # set to [] for random trajectory each time
+            # 'traj_num': [10,11,12,13,14,15,16,17,18,19],  # set to [] for random trajectory each time
+            'traj_num': [10],
             'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
-            'is_eval': True,
-            'noisy_img': True
+            'img_obs': False,
+            'is_eval': False,
+            'noisy_img': False
         }
     )
 
@@ -85,6 +87,10 @@ class EnvBase(gym.Env):
 
         self.seed()
         self.initialize_scene_and_robot()
+
+        self._p_dummy = None
+        self.dummy_physics_client_id = None
+
         if noisy_img:
             self.init_dummy_env()
 
@@ -301,6 +307,7 @@ class EnvBase(gym.Env):
         """
         if not self.noisy_img:
             self._p_dummy = None
+            self.dummy_physics_client_id = None
             return
         
         bc_mode = pybullet.GUI if self.is_rendered and not self.img_obs else pybullet.DIRECT

@@ -13,6 +13,8 @@ from numpy import concatenate
 from scipy.linalg.blas import sscal as SCAL
 from scipy.spatial.transform import Rotation as R
 
+import torch
+
 
 DEG2RAD = np.pi / 180
 
@@ -44,6 +46,8 @@ class WalkerBase:
         self.body_and_feet_quat = np.zeros((K, 4), dtype="f4")
 
     def apply_action(self, action):
+        if torch.is_tensor(action):
+            action = action.numpy()
         forces = self.joint_gains * action
         pybullet.setJointTorqueArray(
             bodyUniqueId=self.id,
