@@ -84,7 +84,7 @@ class Gibbon2DCustomEnv(EnvBase):
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
         obs_space['noisy_state'] = gym.spaces.Box(-high, high, dtype="f4")
-        obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="uint8")
+        obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="f4")
         if self.img_obs:
             obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.height, self.camera.width, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
