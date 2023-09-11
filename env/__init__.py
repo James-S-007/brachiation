@@ -33,8 +33,9 @@ for observation_mode in ["FO", "PO", "Asym"]:
             'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
-            'is_eval': True,
-            'noisy_img': True
+            'img_obs': True,
+            'is_eval': False,
+            'noisy_img': False
         }
     )
 
@@ -85,7 +86,7 @@ class EnvBase(gym.Env):
 
         self.seed()
         self.initialize_scene_and_robot()
-        if noisy_img:
+        if self.noisy_img:
             self.init_dummy_env()
 
     def close(self):
@@ -365,4 +366,3 @@ class EnvBase(gym.Env):
         for i, h in enumerate(dummy_handhold_markers):
             h.set_position(noisy_pos[i])
         
-

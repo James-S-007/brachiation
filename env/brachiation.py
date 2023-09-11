@@ -70,8 +70,9 @@ class Gibbon2DCustomEnv(EnvBase):
         filename = os.path.join(basepath, "plane_stadium.sdf")
         id_ = self._p.loadSDF(filename, useMaximalCoordinates=True)[0]
         self._p.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
-        id_ = self._p_dummy.loadSDF(filename, useMaximalCoordinates=True)[0]
-        self._p_dummy.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
+        if self.noisy_img:
+            id_ = self._p_dummy.loadSDF(filename, useMaximalCoordinates=True)[0]
+            self._p_dummy.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
 
         # Fix-ordered Curriculum
         self.curriculum = 9
@@ -146,7 +147,8 @@ class Gibbon2DCustomEnv(EnvBase):
         targets = self.handholds[k - 1 : k + self.lookahead]
         noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, self.handholds.shape).astype(self.handholds.dtype)
         targets_noise = noise_handholds[k-1:k+self.lookahead]
-        self.set_dummy_handholds(self.dummy_handhold_markers, self.dummy_handholds + noise_handholds)
+        if self.noisy_img:
+            self.set_dummy_handholds(self.dummy_handhold_markers, self.dummy_handholds + noise_handholds)
         target_delta = targets - self.robot.body_xyz
         noisy_target_delta = (targets + targets_noise) - self.robot.body_xyz  # with noise
 
@@ -251,16 +253,17 @@ class Gibbon2DCustomEnv(EnvBase):
         )
 
         # self.set_dummy_robot_state(**noisy_robot_state_raw)
-        self.dummy_robot.reset(
-            random_pose=False,
-            random_mirror=False,
-            pos=noisy_robot_state_raw['pos'],
-            quat=noisy_robot_state_raw['quat'],
-            vel=None,
-            ang_vel=None,
-            noise_body_sd=0.0
-        )
-        self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
+        if self.noisy_img:
+            self.dummy_robot.reset(
+                random_pose=False,
+                random_mirror=False,
+                pos=noisy_robot_state_raw['pos'],
+                quat=noisy_robot_state_raw['quat'],
+                vel=None,
+                ang_vel=None,
+                noise_body_sd=0.0
+            )
+            self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
 
         if len(self.traj_num) < 1:
             traj_id = self.np_random.randint(len(self.traj_data))
@@ -366,16 +369,17 @@ class Gibbon2DCustomEnv(EnvBase):
 
         # Order matters here, calc_state -> grab_action -> set contact
         self.robot_state, self.noisy_robot_state, noisy_robot_state_raw = self.robot.calc_state(noise_body_sd=self.noise_body_sd)
-        self.dummy_robot.reset(
-            random_pose=False,
-            random_mirror=False,
-            pos=noisy_robot_state_raw['pos'],
-            quat=noisy_robot_state_raw['quat'],
-            vel=None,
-            ang_vel=None,
-            noise_body_sd=0.0
-        )
-        self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
+        if self.noisy_img:
+            self.dummy_robot.reset(
+                random_pose=False,
+                random_mirror=False,
+                pos=noisy_robot_state_raw['pos'],
+                quat=noisy_robot_state_raw['quat'],
+                vel=None,
+                ang_vel=None,
+                noise_body_sd=0.0
+            )
+            self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
 
         self.calc_hand_state()
         self.apply_grab_action(grab_action)
