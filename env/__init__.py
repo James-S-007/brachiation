@@ -23,8 +23,9 @@ os.sys.path.append(parent_dir)
 
 
 for observation_mode in ["FO", "PO", "Asym"]:
+    # Multi-Trajectory Base
     register(
-        id=f"{observation_mode}Gibbon2DCustomEnv-v0",
+        id=f"{observation_mode}MultiTrajGibbon2DCustomEnv-v0",
         entry_point="env.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
@@ -33,9 +34,61 @@ for observation_mode in ["FO", "PO", "Asym"]:
             'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
-            'img_obs': False,
+            'img_obs': True,
             'is_eval': False,
             'noisy_img': False
+        }
+    )
+
+    # Multi-Trajectory Eval
+    register(
+        id=f"{observation_mode}MultiTrajEvalGibbon2DCustomEnv-v0",
+        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        max_episode_steps=1000,
+        kwargs={
+            'ref_traj': True,
+            'traj_num': [10,11,12,13,14,15,16,17,18,19],  # set to [] for random trajectory each time
+            'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'img_obs': True,
+            'is_eval': True,
+            'noisy_img': True
+        }
+    )
+
+    # Single-Trajectory Base
+    register(
+        id=f"{observation_mode}SingleTrajGibbon2DCustomEnv-v0",
+        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        max_episode_steps=1000,
+        kwargs={
+            'ref_traj': True,
+            'traj_num': [10],
+            'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'img_obs': True,
+            'is_eval': False,
+            'noisy_img': False
+        }
+    )
+
+    # Single-Trajectory Eval
+    register(
+        id=f"{observation_mode}SingleTrajEvalGibbon2DCustomEnv-v0",
+        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        max_episode_steps=1000,
+        kwargs={
+            'ref_traj': True,
+	    'traj_num': [10],
+            # 'traj_num': [10,11,12,13,14,15,16,17,18,19],  # set to [] for random trajectory each time
+            'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'noise_reftraj_sd': 0.0 if observation_mode == "FO" else 0.05,
+            'img_obs': True,
+            'is_eval': True,
+            'noisy_img': True
         }
     )
 
