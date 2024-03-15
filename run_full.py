@@ -9,7 +9,7 @@ from bullet.objects import VCylinder
 import torch
 import numpy as np
 
-from env.utils import make_env, make_vec_envs
+from brachiation.utils import make_env, make_vec_envs
 from com.logger import CSVLogger
 
 now_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")

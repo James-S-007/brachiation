@@ -25,7 +25,7 @@ os.sys.path.append(parent_dir)
 for observation_mode in ["FO", "PO"]:
     register(
         id=f"{observation_mode}Gibbon2DCustomEnv-v0",
-        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        entry_point="brachiation.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
@@ -39,7 +39,7 @@ for observation_mode in ["FO", "PO"]:
 for observation_mode in ["FO", "PO"]:
     register(
         id=f"{observation_mode}Gibbon2DPointMassEnv-v0",
-        entry_point="env.brachiation:Gibbon2DPointMassEnv",
+        entry_point="brachiation.brachiation:Gibbon2DPointMassEnv",
         kwargs={
             'num_parallel': 1,
             'noise_stdev': 0.0 if observation_mode == "FO" else 0.01

@@ -1,6 +1,6 @@
 import gym
 import imageio
-from env.brachiation import Gibbon2DCustomEnv
+from brachiation.brachiation import Gibbon2DCustomEnv
 import cv2
 import pybullet
 import numpy as np
