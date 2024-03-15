@@ -252,9 +252,9 @@ class ShmemVecEnv(VecEnv):
                 # Pinning task to CPUs
                 target_cpu = i % multiprocessing.cpu_count()
                 try:
-                    os.sched_setaffinity(proc.pid, [target_cpu])  # TODO(js): not available on m1 mac, find alternative
+                    os.sched_setaffinity(proc.pid, [target_cpu])
                 except:
-                    continue
+                    continue  # not available on m-series mac
 
                 child_pipe.close()
         self.waiting_step = False

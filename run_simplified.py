@@ -7,7 +7,7 @@ import pickle
 
 import torch
 
-from env.utils import make_env
+from brachiation.utils import make_env
 from com.logger import CSVLogger
 
 now_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
