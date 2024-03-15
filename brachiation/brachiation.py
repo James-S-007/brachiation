@@ -44,18 +44,35 @@ class Gibbon2DCustomEnv(EnvBase):
 
     lookahead = 1
 
-    def __init__(self, ref_traj=False, traj_num=None, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, **kwargs):
-        super().__init__(self.robot_class, remove_ground=True, **kwargs)
+    def __init__(self, ref_traj=False, traj_num=None, noise_body_sd=0.0, noise_handholds_sd=0.0, noise_reftraj_sd=0.0, is_eval=False, **kwargs):
+        if is_eval:
+            camera_params = {
+                'img_width': 640,
+                'img_height': 360,
+                'camera_dist': 4.5
+            }
+        else:
+            camera_params = {
+                'img_width': 80,
+                'img_height': 80,
+                'camera_dist': 1.5
+            }
+
+        super().__init__(self.robot_class, remove_ground=True, **camera_params, **kwargs)
         self.robot.set_base_pose(pose="hanging")
         self.ref_traj = ref_traj
         self.noise_body_sd = noise_body_sd
         self.noise_handholds_sd = noise_handholds_sd
         self.noise_reftraj_sd = noise_reftraj_sd
+        self.is_eval = is_eval
 
         basepath = os.path.join(parent_dir, "data", "objects", "misc")
         filename = os.path.join(basepath, "plane_stadium.sdf")
         id_ = self._p.loadSDF(filename, useMaximalCoordinates=True)[0]
         self._p.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
+        if self.noisy_img:
+            id_ = self._p_dummy.loadSDF(filename, useMaximalCoordinates=True)[0]
+            self._p_dummy.resetBasePositionAndOrientation(id_, (0, 0.2, 0), (1, 0, 0, 1))
 
         # Fix-ordered Curriculum
         self.curriculum = 9
@@ -67,9 +84,12 @@ class Gibbon2DCustomEnv(EnvBase):
         high = np.inf * np.ones(RO + K, dtype=np.float32)
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
-        obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="uint8")
+        obs_space['noisy_state'] = gym.spaces.Box(-high, high, dtype="f4")
+        obs_space['handholds_grabbed'] = gym.spaces.Box(0, 255, shape=(), dtype="f4")
         if self.img_obs:
-            obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.height, self.camera.width, 3), dtype="uint8")
+            if self.noisy_img:
+                obs_space['log_img_noisy'] = gym.spaces.Box(0, 255, shape=(self.camera.height, self.camera.width, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
 
         RA = self.robot.action_space.shape[0]
@@ -94,6 +114,10 @@ class Gibbon2DCustomEnv(EnvBase):
             self.handhold_markers = [
                 VSphere(self._p, 0.05) for _ in range(self.num_steps)
             ]
+            if self.noisy_img:
+                self.dummy_handhold_markers = [
+                    VSphere(self._p_dummy, 0.05) for _ in range(self.num_steps)
+                ]
 
         self.ref_xyz = np.zeros((self.max_timestep * 2, 3), dtype=np.float32)
         self.ref_swing = np.zeros(len(self.ref_xyz), dtype=np.float32)
@@ -123,12 +147,17 @@ class Gibbon2DCustomEnv(EnvBase):
     def get_observation_components(self):
         k = self.next_step_index
         targets = self.handholds[k - 1 : k + self.lookahead]
-        noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, targets.shape)
-        target_delta = (targets + noise_handholds) - self.robot.body_xyz  # with noise
+        noise_handholds = np.random.normal(0.0, self.noise_handholds_sd, self.handholds.shape).astype(self.handholds.dtype)
+        targets_noise = noise_handholds[k-1:k+self.lookahead]
+        if self.noisy_img:
+            self.set_dummy_handholds(self.dummy_handhold_markers, self.dummy_handholds + noise_handholds)
+        target_delta = targets - self.robot.body_xyz
+        noisy_target_delta = (targets + targets_noise) - self.robot.body_xyz  # with noise
 
         window = slice(self.ref_timestep + 1, self.ref_timestep + 30, 5)
         noise_reftraj = np.random.normal(0.0, self.noise_reftraj_sd, self.ref_xyz[window].shape)
-        ref_delta = (self.ref_xyz[window] + noise_reftraj) - self.robot.body_xyz  # with noise
+        ref_delta = self.ref_xyz[window] - self.robot.body_xyz
+        noisy_ref_delta = (self.ref_xyz[window] + noise_reftraj) - self.robot.body_xyz  # with noise
 
         pitch = self.robot.body_rpy[1]
         cos_ = math.cos(-pitch)
@@ -144,20 +173,33 @@ class Gibbon2DCustomEnv(EnvBase):
         obs = {}
         if self.ref_traj:
             obs['state'] = self.robot_state, target_delta.flatten(), ref_delta.flatten()
+            obs['noisy_state'] = self.noisy_robot_state, noisy_target_delta.flatten(), noisy_ref_delta.flatten()
         else:
             obs['state'] = self.robot_state, target_delta.flatten(), np.zeros_like(ref_delta.ravel())
+            obs['noisy_state'] = self.noisy_robot_state, noisy_target_delta.flatten(), np.zeros_like(noisy_ref_delta.flatten())
         obs['state'] = np.concatenate(obs['state']).astype('float32')
+        obs['noisy_state'] = np.concatenate(obs['noisy_state']).astype('float32')
         obs['handholds_grabbed'] = self.next_step_index
 
         if self.img_obs:
             # update camera pos and get img
             self.camera.wait()
-            camera_xyz = (
-                *self.robot.body_xyz[0:2],
-                self.handholds[self.next_step_index][2],
-            )
+
+            if not self.is_eval:
+                camera_xyz = (  # track monkey
+                    *self.robot.body_xyz[0:2],
+                    self.handholds[self.next_step_index][2],
+                )
+            else:
+                camera_xyz = self.handholds[0] + (self.handholds[5] - self.handholds[0]) / 2  # constant distant view
+            
             self.camera.track(camera_xyz)
-            obs['img'] = self.camera.dump_rgb_array()
+            # get x,y positions of first ~8 handholds and set camera to there, increase view distance
+            obs['log_img'] = self.camera.dump_rgb_array()
+            if self.noisy_img:
+                self.camera_noisy.wait()
+                self.camera_noisy.track(camera_xyz)
+                obs['log_img_noisy'] = self.camera_noisy.dump_rgb_array()
         return obs
 
     def generate_handholds(self):
@@ -208,7 +250,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.ref_timestep = 0
         self.done = False
 
-        self.robot_state = self.robot.reset(
+        self.robot_state, self.noisy_robot_state, noisy_robot_state_raw = self.robot.reset(
             random_pose=self.robot_random_start,
             random_mirror=self.robot_random_start,
             pos=self.robot_init_position,
@@ -216,7 +258,24 @@ class Gibbon2DCustomEnv(EnvBase):
             noise_body_sd=self.noise_body_sd
         )
 
-        traj_id = self.np_random.randint(len(self.traj_data)) if self.traj_num is None else self.traj_num
+        # self.set_dummy_robot_state(**noisy_robot_state_raw)
+        if self.noisy_img:
+            self.dummy_robot.reset(
+                random_pose=False,
+                random_mirror=False,
+                pos=noisy_robot_state_raw['pos'],
+                quat=noisy_robot_state_raw['quat'],
+                vel=None,
+                ang_vel=None,
+                noise_body_sd=0.0
+            )
+            self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
+
+        if len(self.traj_num) < 1:
+            traj_id = self.np_random.randint(len(self.traj_data))
+        else:
+            traj_id = self.traj_num[self.np_random.randint(len(self.traj_num))]
+
         self.current_traj_id = traj_id
         ref_xyz, ref_swing, handholds = self.traj_data[traj_id]
 
@@ -239,6 +298,8 @@ class Gibbon2DCustomEnv(EnvBase):
         if self.is_rendered or self.img_obs:
             for h, pos in zip(self.handhold_markers, self.handholds):
                 h.set_position(pos)
+
+        self.dummy_handholds = self.handholds.copy()
 
         if not self.state_id >= 0:
             self.state_id = self._p.saveState()
@@ -266,6 +327,7 @@ class Gibbon2DCustomEnv(EnvBase):
         self.grab_constraint_ids[hand] = id
         self.robot.feet_contact[hand] = 1
         self.robot_state[hand - 2] = 1
+        self.noisy_robot_state[hand - 2] = 1
 
         if self.is_rendered or self.img_obs:
             xyz = self.robot.feet_xyz[hand]
@@ -312,7 +374,19 @@ class Gibbon2DCustomEnv(EnvBase):
             SCAL(0.1, self.robot.joint_speeds)
 
         # Order matters here, calc_state -> grab_action -> set contact
-        self.robot_state = self.robot.calc_state(noise_body_sd=self.noise_body_sd)
+        self.robot_state, self.noisy_robot_state, noisy_robot_state_raw = self.robot.calc_state(noise_body_sd=self.noise_body_sd)
+        if self.noisy_img:
+            self.dummy_robot.reset(
+                random_pose=False,
+                random_mirror=False,
+                pos=noisy_robot_state_raw['pos'],
+                quat=noisy_robot_state_raw['quat'],
+                vel=None,
+                ang_vel=None,
+                noise_body_sd=0.0
+            )
+            self.dummy_robot.reset_joint_states(noisy_robot_state_raw['joint_angles'], noisy_robot_state_raw['joint_speeds'])
+
         self.calc_hand_state()
         self.apply_grab_action(grab_action)
 
@@ -320,6 +394,7 @@ class Gibbon2DCustomEnv(EnvBase):
         is_grabbing = self.grab_constraint_ids >= 0
         self.robot.feet_contact[:] = is_grabbing.astype(np.float32)
         self.robot_state[-2:] = self.robot.feet_contact
+        self.noisy_robot_state[-2:] = self.robot.feet_contact
 
         just_grabbed = is_grabbing * (self.prev_grab_cids == -1)
         # just_released = ~is_grabbing * (self.prev_grab_cids > -1)
@@ -528,7 +603,7 @@ class Gibbon2DPointMassEnv(gym.Env):
         obs_space = {}
         obs_space['state'] = gym.spaces.Box(-high, high, dtype="f4")
         if self.img_obs:
-            obs_space['img'] = gym.spaces.Box(0, 255, shape=(self.camera.width, self.camera.height, 3), dtype="uint8")
+            obs_space['log_img'] = gym.spaces.Box(0, 255, shape=(self.camera.height, self.camera.width, 3), dtype="uint8")
         self.observation_space = gym.spaces.Dict(obs_space)
 
         self._dr = torch.zeros((P, N + L), device=D)
@@ -620,7 +695,7 @@ class Gibbon2DPointMassEnv(gym.Env):
                 0
             )
             self.camera.track(camera_xyz)
-            obs['img'] = self.camera.dump_rgb_array()
+            obs['log_img'] = self.camera.dump_rgb_array()
         return obs
 
     def reset(self, indices=None):
