@@ -26,7 +26,7 @@ for observation_mode in ["FO", "PO", "Asym"]:
     # Multi-Trajectory Base
     register(
         id=f"{observation_mode}MultiTrajGibbon2DCustomEnv-v0",
-        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        entry_point="brachiation.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
@@ -43,7 +43,7 @@ for observation_mode in ["FO", "PO", "Asym"]:
     # Multi-Trajectory Eval
     register(
         id=f"{observation_mode}MultiTrajEvalGibbon2DCustomEnv-v0",
-        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        entry_point="brachiation.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
@@ -60,7 +60,7 @@ for observation_mode in ["FO", "PO", "Asym"]:
     # Single-Trajectory Base
     register(
         id=f"{observation_mode}SingleTrajGibbon2DCustomEnv-v0",
-        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        entry_point="brachiation.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
@@ -77,11 +77,11 @@ for observation_mode in ["FO", "PO", "Asym"]:
     # Single-Trajectory Eval
     register(
         id=f"{observation_mode}SingleTrajEvalGibbon2DCustomEnv-v0",
-        entry_point="env.brachiation:Gibbon2DCustomEnv",
+        entry_point="brachiation.brachiation:Gibbon2DCustomEnv",
         max_episode_steps=1000,
         kwargs={
             'ref_traj': True,
-	    'traj_num': [10],
+        'traj_num': [10],
             # 'traj_num': [10,11,12,13,14,15,16,17,18,19],  # set to [] for random trajectory each time
             'noise_body_sd': 0.0 if observation_mode == "FO" else 0.05,
             'noise_handholds_sd': 0.0 if observation_mode == "FO" else 0.05,
@@ -95,13 +95,14 @@ for observation_mode in ["FO", "PO", "Asym"]:
 for observation_mode in ["FO", "PO"]:
     register(
         id=f"{observation_mode}Gibbon2DPointMassEnv-v0",
-        entry_point="env.brachiation:Gibbon2DPointMassEnv",
+        entry_point="brachiation.brachiation:Gibbon2DPointMassEnv",
         kwargs={
             'num_parallel': 1,
             'noise_stdev': 0.0 if observation_mode == "FO" else 0.01
         }
     )
 
+# register_envs()
 
 class EnvBase(gym.Env):
     def __init__(
@@ -413,7 +414,7 @@ class EnvBase(gym.Env):
             self.dummy_robot.id,
             self.dummy_robot.joint_ids,
             targetValues=joint_angles,
-            targetVelocities=joint_speeds,  # TODO(js): does it matter
+            targetVelocities=joint_speeds,
             physicsClientId=self.dummy_physics_client_id,
         )
 

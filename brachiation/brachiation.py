@@ -12,8 +12,8 @@ from scipy.linalg.blas import sscal as SCAL
 import torch
 
 from bullet.objects import VCylinder, VSphere
-from env import EnvBase
-from env.agents import Gibbon2D
+from brachiation import EnvBase
+from brachiation.agents import Gibbon2D
 
 
 DEG2RAD = np.pi / 180
